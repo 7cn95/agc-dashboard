@@ -1,0 +1,8 @@
+[phases.setup]
+nixpkgsChannel = "unstable"
+
+[phases.build]
+nixpkgsChannel = "unstable"
+
+[nodejs]
+version = "20"
