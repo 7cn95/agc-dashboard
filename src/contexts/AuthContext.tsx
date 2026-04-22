@@ -36,14 +36,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function login(username: string, password: string) {
-    // Hardcoded admin login for initial access
-    if (username === 'admin' && password === 'admin123') {
-      const adminUser = { id: 'admin', username: 'admin', role: 'admin', email: 'admin@agc.com', full_name: 'مدير النظام', is_active: true }
-      setUser(adminUser as User)
-      localStorage.setItem('currentUser', JSON.stringify(adminUser))
-      return { success: true }
-    }
-
     try {
       const { data, error } = await supabase
         .from('users')
@@ -56,9 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: 'اسم المستخدم غير صحيح' }
       }
 
-      // Note: In production, use proper bcrypt comparison on backend
-      // For now, we'll store password as-is (from MongoDB export)
-      if (data.password !== password) {
+      // Use bcrypt to verify password against stored hash
+      const bcrypt = require('bcryptjs')
+      const passwordMatch = bcrypt.compareSync(password, data.password)
+      if (!passwordMatch) {
         return { success: false, error: 'كلمة المرور غير صحيحة' }
       }
 
