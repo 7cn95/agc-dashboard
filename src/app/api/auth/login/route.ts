@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { Client } from 'pg'
+import { getDbPool } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
@@ -13,24 +13,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Username and password required' }, { status: 400 })
     }
 
-    // Connect to Supabase PostgreSQL
-    const client = new Client({
-      host: process.env.DATABASE_HOST || 'aws-1-us-east-2.pooler.supabase.com',
-      port: parseInt(process.env.DATABASE_PORT || '6543'),
-      database: process.env.DATABASE_NAME || 'postgres',
-      user: process.env.DATABASE_USER || 'postgres.qfxifmpmlalocjpdrcvp',
-      password: process.env.DATABASE_PASSWORD || 'adminIT123@@',
-    })
-
-    await client.connect()
+    const pool = getDbPool()
 
     // Query user from public.users
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT id, username, password, role, name, is_active FROM public.users WHERE username = $1 AND is_active = true',
       [username]
     )
-
-    await client.end()
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'اسم المستخدم غير صحيح' }, { status: 401 })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, ReceiptWithDetails } from '@/lib/supabase'
+import { ReceiptWithDetails } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatNumber, formatDate } from '@/lib/utils'
 import { 
@@ -31,20 +31,13 @@ export default function ReceiptsPage() {
 
   async function fetchReceipts() {
     try {
-      const { data, error } = await supabase
-        .from('receipts')
-        .select(`
-          *,
-          projects(project_name),
-          materials(material_name),
-          contractors(contractor_name),
-          users(name),
-          vehicles(vehicle_number, driver_name)
-        `)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setReceipts(data || [])
+      const token = localStorage.getItem('agc_token')
+      const res = await fetch('/api/receipts', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Failed to fetch')
+      const data = await res.json()
+      setReceipts(data)
     } catch (error) {
       console.error('Error fetching receipts:', error)
     } finally {
@@ -71,19 +64,19 @@ export default function ReceiptsPage() {
       cell: ({ row }) => formatNumber(row.original.shortage),
     },
     {
-      accessorKey: 'contractors.contractor_name',
+      accessorKey: 'contractor_name',
       header: 'المقاول',
-      cell: ({ row }) => row.original.contractors?.contractor_name || '-',
+      cell: ({ row }) => row.original.contractor_name || '-',
     },
     {
-      accessorKey: 'projects.project_name',
+      accessorKey: 'project_name',
       header: 'المشروع',
-      cell: ({ row }) => row.original.projects?.project_name || '-',
+      cell: ({ row }) => row.original.project_name || '-',
     },
     {
-      accessorKey: 'materials.material_name',
+      accessorKey: 'material_name',
       header: 'المادة',
-      cell: ({ row }) => row.original.materials?.material_name || '-',
+      cell: ({ row }) => row.original.material_name || '-',
     },
     {
       accessorKey: 'receipt_date',
@@ -305,23 +298,23 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: ReceiptWithDetails;
             </div>
             <div>
               <p className="text-gray-500 text-sm">المقاول</p>
-              <p className="font-medium">{receipt.contractors?.contractor_name || '-'}</p>
+              <p className="font-medium">{receipt.contractor_name || '-'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-sm">المشروع</p>
-              <p className="font-medium">{receipt.projects?.project_name || '-'}</p>
+              <p className="font-medium">{receipt.project_name || '-'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-sm">المادة</p>
-              <p className="font-medium">{receipt.materials?.material_name || '-'}</p>
+              <p className="font-medium">{receipt.material_name || '-'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-sm">رقم السيارة</p>
-              <p className="font-medium">{receipt.manual_vehicle_number || receipt.vehicles?.vehicle_number || '-'}</p>
+              <p className="font-medium">{receipt.manual_vehicle_number || receipt.vehicle_number || '-'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-sm">السائق</p>
-              <p className="font-medium">{receipt.manual_driver_name || receipt.vehicles?.driver_name || '-'}</p>
+              <p className="font-medium">{receipt.manual_driver_name || receipt.driver_name || '-'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-sm">الحالة</p>
@@ -335,7 +328,7 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: ReceiptWithDetails;
             </div>
             <div>
               <p className="text-gray-500 text-sm">المسجل</p>
-              <p className="font-medium">{receipt.users?.name || '-'}</p>
+              <p className="font-medium">{receipt.registrar_name || '-'}</p>
             </div>
           </div>
           {receipt.notes && (
@@ -369,24 +362,29 @@ function AddReceiptModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     setLoading(true)
 
     try {
-      const { error } = await supabase.from('receipts').insert({
-        receipt_number: formData.receipt_number,
-        quantity: parseFloat(formData.quantity),
-        shortage: parseFloat(formData.shortage || '0'),
-        contractor_id: formData.contractor_id || null,
-        project_id: formData.project_id || null,
-        material_id: formData.material_id || null,
-        vehicle_id: formData.vehicle_id || null,
-        receipt_date: formData.receipt_date,
-        notes: formData.notes,
-        manual_vehicle_number: '',
-        manual_driver_name: '',
-        fixed_price: 0,
-        is_audited: false,
-        is_hidden: false,
+      const token = localStorage.getItem('agc_token')
+      const res = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          receipt_number: formData.receipt_number,
+          quantity: parseFloat(formData.quantity),
+          shortage: parseFloat(formData.shortage || '0'),
+          contractor_id: formData.contractor_id || null,
+          project_id: formData.project_id || null,
+          material_id: formData.material_id || null,
+          vehicle_id: formData.vehicle_id || null,
+          receipt_date: formData.receipt_date,
+          notes: formData.notes,
+          manual_vehicle_number: '',
+          manual_driver_name: '',
+        })
       })
 
-      if (error) throw error
+      if (!res.ok) throw new Error('Failed to add receipt')
       onSuccess()
     } catch (error) {
       console.error('Error adding receipt:', error)

@@ -91,11 +91,12 @@ export interface ArchiveLog {
   created_at: string
 }
 
-// Join types
+// Join types - flat structure from API
 export interface ReceiptWithDetails extends Receipt {
-  projects?: { project_name: string }
-  materials?: { material_name: string }
-  contractors?: { contractor_name: string }
-  users?: { name: string }
-  vehicles?: { vehicle_number: string; driver_name: string }
+  project_name?: string
+  material_name?: string
+  contractor_name?: string
+  registrar_name?: string
+  vehicle_number?: string
+  driver_name?: string
 }
