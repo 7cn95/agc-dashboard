@@ -37,8 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(username: string, password: string) {
     try {
+      // Query public.users schema explicitly
       const { data, error } = await supabase
-        .from('users')
+        .from('public.users')
         .select('*')
         .eq('username', username)
         .eq('is_active', true)
