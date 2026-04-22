@@ -1,14 +1,20 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { supabase, User } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+
+interface User {
+  id: string
+  username: string
+  role: string
+  name: string
+}
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>
-  logout: () => Promise<void>
+  logout: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -19,54 +25,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    checkUser()
-  }, [])
-
-  async function checkUser() {
-    const stored = localStorage.getItem('currentUser')
-    if (stored) {
+    // Check for stored token on mount
+    const token = localStorage.getItem('agc_token')
+    const userData = localStorage.getItem('agc_user')
+    if (token && userData) {
       try {
-        const parsed = JSON.parse(stored)
-        setUser(parsed)
+        setUser(JSON.parse(userData))
       } catch {
-        localStorage.removeItem('currentUser')
+        localStorage.removeItem('agc_token')
+        localStorage.removeItem('agc_user')
       }
     }
     setLoading(false)
-  }
+  }, [])
 
   async function login(username: string, password: string) {
     try {
-      // Query public.users schema explicitly
-      const { data, error } = await supabase
-        .from('public.users')
-        .select('*')
-        .eq('username', username)
-        .eq('is_active', true)
-        .single()
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
 
-      if (error || !data) {
-        return { success: false, error: 'اسم المستخدم غير صحيح' }
+      const data = await response.json()
+
+      if (!response.ok) {
+        return { success: false, error: data.error || 'حدث خطأ' }
       }
 
-      // Use bcrypt to verify password against stored hash
-      const bcrypt = require('bcryptjs')
-      const passwordMatch = bcrypt.compareSync(password, data.password)
-      if (!passwordMatch) {
-        return { success: false, error: 'كلمة المرور غير صحيحة' }
-      }
-
-      setUser(data)
-      localStorage.setItem('currentUser', JSON.stringify(data))
+      // Store token and user data
+      localStorage.setItem('agc_token', data.token)
+      localStorage.setItem('agc_user', JSON.stringify(data.user))
+      setUser(data.user)
+      
       return { success: true }
     } catch (err) {
-      return { success: false, error: 'حدث خطأ أثناء تسجيل الدخول' }
+      return { success: false, error: 'حدث خطأ أثناء الاتصال بالخادم' }
     }
   }
 
-  async function logout() {
+  function logout() {
+    localStorage.removeItem('agc_token')
+    localStorage.removeItem('agc_user')
     setUser(null)
-    localStorage.removeItem('currentUser')
     router.push('/login')
   }
 
