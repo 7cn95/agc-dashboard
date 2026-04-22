@@ -4,7 +4,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+  // During build, these may not be set. Use empty strings to allow build to succeed.
+  // Runtime will use actual values from environment.
+  console.warn('Missing Supabase environment variables - using empty defaults')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
