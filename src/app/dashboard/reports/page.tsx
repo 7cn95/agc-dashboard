@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, Receipt } from '@/lib/supabase'
-import { formatNumber, formatDate } from '@/lib/utils'
+import { Receipt } from '@/lib/supabase'
+import { formatNumber } from '@/lib/utils'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { Download, Calendar, TrendingUp } from 'lucide-react'
+import { Download, Calendar } from 'lucide-react'
 
 export default function ReportsPage() {
-  const [receipts, setReceipts] = useState<Receipt[]>([])
+  const [receipts, setReceipts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -16,17 +16,19 @@ export default function ReportsPage() {
 
   async function fetchReceipts() {
     try {
-      let query = supabase.from('receipts').select('*').order('receipt_date', { ascending: false })
+      const token = localStorage.getItem('agc_token')
+      const params = new URLSearchParams()
+      if (dateFrom) params.set('dateFrom', dateFrom)
+      if (dateTo) params.set('dateTo', dateTo)
       
-      if (dateFrom) {
-        query = query.gte('receipt_date', dateFrom)
-      }
-      if (dateTo) {
-        query = query.lte('receipt_date', dateTo)
-      }
-      
-      const { data } = await query
-      setReceipts(data || [])
+      const url = '/api/receipts' + (params.toString() ? `?${params}` : '')
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setReceipts(data)
+    } catch (error) {
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
@@ -36,20 +38,17 @@ export default function ReportsPage() {
     fetchReceipts()
   }, [dateFrom, dateTo])
 
-  // Calculate stats
   const totalQuantity = receipts.reduce((sum, r) => sum + (r.quantity || 0), 0)
   const totalShortage = receipts.reduce((sum, r) => sum + (r.shortage || 0), 0)
   const auditedCount = receipts.filter(r => r.is_audited).length
 
-  // Chart data by project
   const projectData = receipts.reduce((acc: any, r) => {
     const key = r.project_id || 'unknown'
-    if (!acc[key]) acc[key] = { name: r.project_id || 'غير محدد', value: 0 }
+    if (!acc[key]) acc[key] = { name: r.project_name || 'غير محدد', value: 0 }
     acc[key].value += r.quantity || 0
     return acc
   }, {})
 
-  // Chart data by date
   const dateData = receipts.reduce((acc: any, r) => {
     const date = r.receipt_date || 'unknown'
     if (!acc[date]) acc[date] = { date, quantity: 0, shortage: 0 }
@@ -67,10 +66,9 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">التقارير</h1>
-        <p className="text-gray-500 mt-1">تحليل数据和 statistics</p>
+        <p className="text-gray-500 mt-1">تحليل البيانات والإحصائيات</p>
       </div>
 
-      {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4">
         <Calendar size={20} className="text-gray-400" />
         <input
@@ -94,7 +92,6 @@ export default function ReportsPage() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-sm p-6">
           <p className="text-gray-500 text-sm">إجمالي الإيصالات</p>
@@ -116,9 +113,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar Chart - By Date */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-bold mb-4">الكمية حسب التاريخ</h3>
           <div className="h-64">
@@ -135,7 +130,6 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Pie Chart - By Project */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-bold mb-4">التوزيع حسب المشروع</h3>
           <div className="h-64">
@@ -161,7 +155,6 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Export Button */}
       <div className="flex justify-end">
         <button className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
           <Download size={20} />

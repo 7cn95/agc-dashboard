@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, Project } from '@/lib/supabase'
+import { Project } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 
 export default function ProjectsPage() {
   const { user } = useAuth()
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -17,8 +17,14 @@ export default function ProjectsPage() {
 
   async function fetchProjects() {
     try {
-      const { data } = await supabase.from('projects').select('*').order('project_name')
-      setProjects(data || [])
+      const token = localStorage.getItem('agc_token')
+      const res = await fetch('/api/projects', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setProjects(data)
+    } catch (error) {
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
@@ -26,11 +32,19 @@ export default function ProjectsPage() {
 
   async function deleteProject(id: string) {
     if (!confirm('هل تريد حذف هذا المشروع؟')) return
-    await supabase.from('projects').delete().eq('id', id)
-    fetchProjects()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch(`/api/projects/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      fetchProjects()
+    } catch (error) {
+      console.error('Error:', error)
+    }
   }
 
-  const columns: ColumnDef<Project>[] = useMemo(() => [
+  const columns: ColumnDef<any>[] = useMemo(() => [
     { accessorKey: 'project_name', header: 'اسم المشروع', cell: info => info.getValue() },
     { 
       accessorKey: 'is_active', 
@@ -124,9 +138,19 @@ function ProjectModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('projects').insert(form)
-    setLoading(false)
-    onSuccess()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(form)
+      })
+      onSuccess()
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
-import { getDbPool } from '@/lib/supabase'
+import { getDbPool } from '@/lib/db'
 
-const pool = getDbPool()
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const result = await pool.query(`
+    const { searchParams } = new URL(request.url)
+    const dateFrom = searchParams.get('dateFrom')
+    const dateTo = searchParams.get('dateTo')
+
+    const pool = getDbPool()
+    
+    let query = `
       SELECT 
         r.*,
         p.project_name,
@@ -21,9 +25,21 @@ export async function GET() {
       LEFT JOIN users u ON r.registrar_id = u.id
       LEFT JOIN vehicles v ON r.vehicle_id = v.id
       WHERE r.is_hidden = false
-      ORDER BY r.created_at DESC
-    `)
+    `
     
+    const params: any[] = []
+    if (dateFrom) {
+      params.push(dateFrom)
+      query += ` AND r.receipt_date >= $${params.length}`
+    }
+    if (dateTo) {
+      params.push(dateTo)
+      query += ` AND r.receipt_date <= $${params.length}`
+    }
+    
+    query += ` ORDER BY r.created_at DESC`
+    
+    const result = await pool.query(query, params)
     return NextResponse.json(result.rows)
   } catch (error) {
     console.error('Error fetching receipts:', error)
@@ -40,6 +56,7 @@ export async function POST(request: Request) {
       manual_vehicle_number, manual_driver_name, registrar_id
     } = body
 
+    const pool = getDbPool()
     const result = await pool.query(`
       INSERT INTO receipts (
         receipt_number, quantity, shortage, contractor_id, project_id,

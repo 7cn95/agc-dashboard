@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, Material } from '@/lib/supabase'
+import { Material } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 
 export default function MaterialsPage() {
   const { user } = useAuth()
-  const [materials, setMaterials] = useState<Material[]>([])
+  const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -17,8 +17,14 @@ export default function MaterialsPage() {
 
   async function fetchMaterials() {
     try {
-      const { data } = await supabase.from('materials').select('*').order('material_name')
-      setMaterials(data || [])
+      const token = localStorage.getItem('agc_token')
+      const res = await fetch('/api/materials', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setMaterials(data)
+    } catch (error) {
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
@@ -26,11 +32,19 @@ export default function MaterialsPage() {
 
   async function deleteMaterial(id: string) {
     if (!confirm('هل تريد حذف هذه المادة؟')) return
-    await supabase.from('materials').delete().eq('id', id)
-    fetchMaterials()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch(`/api/materials/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      fetchMaterials()
+    } catch (error) {
+      console.error('Error:', error)
+    }
   }
 
-  const columns: ColumnDef<Material>[] = useMemo(() => [
+  const columns: ColumnDef<any>[] = useMemo(() => [
     { accessorKey: 'material_name', header: 'اسم المادة', cell: info => info.getValue() },
     { 
       accessorKey: 'is_hidden', 
@@ -119,9 +133,19 @@ function MaterialModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('materials').insert(form)
-    setLoading(false)
-    onSuccess()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch('/api/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(form)
+      })
+      onSuccess()
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, PriceList, Project, Material } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
@@ -10,8 +9,8 @@ import { formatNumber } from '@/lib/utils'
 export default function PricesPage() {
   const { user } = useAuth()
   const [prices, setPrices] = useState<any[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
-  const [materials, setMaterials] = useState<Material[]>([])
+  const [projects, setProjects] = useState<any[]>([])
+  const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -20,14 +19,26 @@ export default function PricesPage() {
 
   async function fetchData() {
     try {
+      const token = localStorage.getItem('agc_token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      
       const [pricesRes, projectsRes, materialsRes] = await Promise.all([
-        supabase.from('price_lists').select('*, projects(project_name), materials(material_name)').order('updated_at', { ascending: false }),
-        supabase.from('projects').select('*').eq('is_active', true),
-        supabase.from('materials').select('*').eq('is_hidden', false),
+        fetch('/api/prices', { headers }),
+        fetch('/api/projects', { headers }),
+        fetch('/api/materials', { headers }),
       ])
-      setPrices(pricesRes.data || [])
-      setProjects(projectsRes.data || [])
-      setMaterials(materialsRes.data || [])
+      
+      const [pricesData, projectsData, materialsData] = await Promise.all([
+        pricesRes.json(),
+        projectsRes.json(),
+        materialsRes.json(),
+      ])
+      
+      setPrices(pricesData)
+      setProjects(projectsData)
+      setMaterials(materialsData)
+    } catch (error) {
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
@@ -35,13 +46,21 @@ export default function PricesPage() {
 
   async function deletePrice(id: string) {
     if (!confirm('هل تريد حذف هذا السعر؟')) return
-    await supabase.from('price_lists').delete().eq('id', id)
-    fetchData()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch(`/api/prices/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      fetchData()
+    } catch (error) {
+      console.error('Error:', error)
+    }
   }
 
-  const columns: ColumnDef<PriceList & { projects?: { project_name: string }, materials?: { material_name: string }}>[] = useMemo(() => [
-    { accessorKey: 'projects.project_name', header: 'المشروع', cell: ({ row }) => row.original.projects?.project_name || '-' },
-    { accessorKey: 'materials.material_name', header: 'المادة', cell: ({ row }) => row.original.materials?.material_name || '-' },
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    { accessorKey: 'project_name', header: 'المشروع', cell: ({ row }) => row.original.project_name || '-' },
+    { accessorKey: 'material_name', header: 'المادة', cell: ({ row }) => row.original.material_name || '-' },
     { accessorKey: 'price_per_unit', header: 'السعر', cell: ({ row }) => formatNumber(row.original.price_per_unit) },
     { 
       accessorKey: 'updated_at', 
@@ -121,21 +140,30 @@ export default function PricesPage() {
   )
 }
 
-function PriceModal({ projects, materials, onClose, onSuccess }: { projects: Project[]; materials: Material[]; onClose: () => void; onSuccess: () => void }) {
+function PriceModal({ projects, materials, onClose, onSuccess }: { projects: any[]; materials: any[]; onClose: () => void; onSuccess: () => void }) {
   const [form, setForm] = useState({ project_id: '', material_id: '', price_per_unit: '' })
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('price_lists').insert({
-      ...form,
-      project_id: form.project_id || null,
-      material_id: form.material_id || null,
-      price_per_unit: parseFloat(form.price_per_unit),
-    })
-    setLoading(false)
-    onSuccess()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch('/api/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          project_id: form.project_id || null,
+          material_id: form.material_id || null,
+          price_per_unit: parseFloat(form.price_per_unit),
+        })
+      })
+      onSuccess()
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

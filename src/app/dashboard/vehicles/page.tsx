@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, Vehicle } from '@/lib/supabase'
+import { Vehicle } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Plus, Search, Edit, Trash2, X } from 'lucide-react'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 
 export default function VehiclesPage() {
   const { user } = useAuth()
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [vehicles, setVehicles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -17,8 +17,14 @@ export default function VehiclesPage() {
 
   async function fetchVehicles() {
     try {
-      const { data } = await supabase.from('vehicles').select('*').order('vehicle_number')
-      setVehicles(data || [])
+      const token = localStorage.getItem('agc_token')
+      const res = await fetch('/api/vehicles', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setVehicles(data)
+    } catch (error) {
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
@@ -26,11 +32,19 @@ export default function VehiclesPage() {
 
   async function deleteVehicle(id: string) {
     if (!confirm('هل تريد حذف هذه المركبة؟')) return
-    await supabase.from('vehicles').delete().eq('id', id)
-    fetchVehicles()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch(`/api/vehicles/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      fetchVehicles()
+    } catch (error) {
+      console.error('Error:', error)
+    }
   }
 
-  const columns: ColumnDef<Vehicle>[] = useMemo(() => [
+  const columns: ColumnDef<any>[] = useMemo(() => [
     { accessorKey: 'vehicle_number', header: 'رقم المركبة', cell: info => info.getValue() },
     { accessorKey: 'driver_name', header: 'اسم السائق', cell: info => info.getValue() || '-' },
     { accessorKey: 'capacity_volume', header: 'السعة', cell: info => info.getValue() || '-' },
@@ -121,12 +135,22 @@ function VehicleModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('vehicles').insert({
-      ...form,
-      capacity_volume: form.capacity_volume ? parseFloat(form.capacity_volume) : null
-    })
-    setLoading(false)
-    onSuccess()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch('/api/vehicles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          ...form,
+          capacity_volume: form.capacity_volume ? parseFloat(form.capacity_volume) : 0
+        })
+      })
+      onSuccess()
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, Contractor } from '@/lib/supabase'
+import { Contractor } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { Plus, Search, Edit, Trash2, X, Phone } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, X } from 'lucide-react'
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel } from '@tanstack/react-table'
 
 export default function ContractorsPage() {
   const { user } = useAuth()
-  const [contractors, setContractors] = useState<Contractor[]>([])
+  const [contractors, setContractors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -17,8 +17,14 @@ export default function ContractorsPage() {
 
   async function fetchContractors() {
     try {
-      const { data } = await supabase.from('contractors').select('*').order('contractor_name')
-      setContractors(data || [])
+      const token = localStorage.getItem('agc_token')
+      const res = await fetch('/api/contractors', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setContractors(data)
+    } catch (error) {
+      console.error('Error:', error)
     } finally {
       setLoading(false)
     }
@@ -26,11 +32,19 @@ export default function ContractorsPage() {
 
   async function deleteContractor(id: string) {
     if (!confirm('هل تريد حذف هذا المقاول؟')) return
-    await supabase.from('contractors').delete().eq('id', id)
-    fetchContractors()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch(`/api/contractors/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      fetchContractors()
+    } catch (error) {
+      console.error('Error:', error)
+    }
   }
 
-  const columns: ColumnDef<Contractor>[] = useMemo(() => [
+  const columns: ColumnDef<any>[] = useMemo(() => [
     { accessorKey: 'contractor_name', header: 'اسم المقاول', cell: info => info.getValue() },
     { accessorKey: 'phone_number', header: 'رقم الهاتف', cell: info => info.getValue() || '-' },
     { 
@@ -120,9 +134,19 @@ function ContractorModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('contractors').insert(form)
-    setLoading(false)
-    onSuccess()
+    try {
+      const token = localStorage.getItem('agc_token')
+      await fetch('/api/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(form)
+      })
+      onSuccess()
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

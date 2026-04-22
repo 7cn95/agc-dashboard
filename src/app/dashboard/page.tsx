@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, Receipt, Contractor, Vehicle, Project, Material, User } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import { 
   Receipt as ReceiptIcon, Users, Truck, Building2, Package, 
   TrendingUp, Calendar, ArrowUpRight 
 } from 'lucide-react'
 import Link from 'next/link'
-import { formatNumber, formatCurrency } from '@/lib/utils'
+import { formatNumber } from '@/lib/utils'
 
 interface Stats {
   totalReceipts: number
@@ -16,12 +16,13 @@ interface Stats {
   totalProjects: number
   totalMaterials: number
   totalUsers: number
-  recentReceipts: Receipt[]
+  recentReceipts: any[]
   todayReceipts: number
   todayQuantity: number
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [stats, setStats] = useState<Stats>({
     totalReceipts: 0,
     totalContractors: 0,
@@ -42,38 +43,39 @@ export default function DashboardPage() {
   async function fetchStats() {
     try {
       const today = new Date().toISOString().split('T')[0]
+      const token = localStorage.getItem('agc_token')
+      const headers = { 'Authorization': `Bearer ${token}` }
 
-      const [
-        receiptsRes,
-        contractorsRes,
-        vehiclesRes,
-        projectsRes,
-        materialsRes,
-        usersRes,
-        todayReceiptsRes,
-      ] = await Promise.all([
-        supabase.from('receipts').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('contractors').select('id'),
-        supabase.from('vehicles').select('id'),
-        supabase.from('projects').select('id'),
-        supabase.from('materials').select('id'),
-        supabase.from('users').select('id'),
-        supabase.from('receipts').select('quantity').eq('receipt_date', today),
+      const [receiptsRes, contractorsRes, vehiclesRes, projectsRes, materialsRes] = await Promise.all([
+        fetch('/api/receipts', { headers }),
+        fetch('/api/contractors', { headers }),
+        fetch('/api/vehicles', { headers }),
+        fetch('/api/projects', { headers }),
+        fetch('/api/materials', { headers }),
       ])
 
-      const todayReceipts = todayReceiptsRes.data || []
-      const totalQuantity = todayReceipts.reduce((sum, r) => sum + (r.quantity || 0), 0)
+      const [receipts, contractors, vehicles, projects, materials] = await Promise.all([
+        receiptsRes.json(),
+        contractorsRes.json(),
+        vehiclesRes.json(),
+        projectsRes.json(),
+        materialsRes.json(),
+      ])
+
+      // Filter today's receipts
+      const todayReceipts = receipts.filter((r: any) => r.receipt_date === today)
+      const todayQuantity = todayReceipts.reduce((sum: number, r: any) => sum + (r.quantity || 0), 0)
 
       setStats({
-        totalReceipts: receiptsRes.count || 0,
-        totalContractors: contractorsRes.data?.length || 0,
-        totalVehicles: vehiclesRes.data?.length || 0,
-        totalProjects: projectsRes.data?.length || 0,
-        totalMaterials: materialsRes.data?.length || 0,
-        totalUsers: usersRes.data?.length || 0,
-        recentReceipts: receiptsRes.data || [],
+        totalReceipts: receipts.length,
+        totalContractors: contractors.length,
+        totalVehicles: vehicles.length,
+        totalProjects: projects.length,
+        totalMaterials: materials.length,
+        totalUsers: 0,
+        recentReceipts: receipts.slice(0, 5),
         todayReceipts: todayReceipts.length,
-        todayQuantity: totalQuantity,
+        todayQuantity: todayQuantity,
       })
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -88,7 +90,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">لوحة التحكم</h1>
@@ -100,7 +101,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="إجمالي الإيصالات"
@@ -132,7 +132,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Today's Stats */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp size={24} />
@@ -149,12 +148,11 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="text-blue-100">عدد المستخدمين</p>
-            <p className="text-3xl font-bold">{stats.totalUsers}</p>
+            <p className="text-3xl font-bold">{user?.name || '-'}</p>
           </div>
         </div>
       </div>
 
-      {/* Recent Receipts */}
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900">آخر الإيصالات</h2>
